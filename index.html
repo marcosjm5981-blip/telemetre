@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1d2733">
+<title>Relevé télémètre</title>
+<style>
+  :root{
+    --bar:#1d2733; --bar2:#27323f; --txt:#eef2f6; --muted:#9aa7b4;
+    --accent:#ff8a1f; --ok:#1f9d55; --blue:#0a52cc; --bg:#5b6672; --panel:#ffffff; --line:#d9dee4;
+  }
+  [hidden]{display:none !important}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);overflow:hidden}
+  button{font:inherit;border:0;border-radius:10px;padding:0 14px;height:44px;background:var(--bar2);color:var(--txt);cursor:pointer;white-space:nowrap}
+  button:active{filter:brightness(1.25)}
+  button.primary{background:var(--accent);color:#1b1b1b;font-weight:600}
+  button.icon{width:44px;padding:0;font-size:20px}
+  button:disabled{opacity:.4}
+  #app{display:flex;flex-direction:column;height:100%}
+  header{background:var(--bar);color:var(--txt);display:flex;gap:8px;align-items:center;padding:8px;padding-top:max(8px,env(safe-area-inset-top));flex-wrap:wrap}
+  header .grow{flex:1}
+  .btstate{display:flex;align-items:center;gap:8px}
+  .dot{width:12px;height:12px;border-radius:50%;background:#8a949e;display:inline-block}
+  .dot.on{background:#2ecc71;box-shadow:0 0 8px #2ecc71}
+  .dot.busy{background:#f1c40f}
+  .pager{display:flex;align-items:center;gap:4px;color:var(--txt)}
+  .pager span{min-width:56px;text-align:center;font-variant-numeric:tabular-nums}
+  #viewer{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;position:relative;touch-action:pan-x pan-y}
+  #stage{position:relative;margin:12px auto;transform-origin:0 0;box-shadow:0 2px 16px rgba(0,0,0,.35);background:#fff}
+  #stage canvas{position:absolute;left:0;top:0;display:block}
+  #home{position:absolute;inset:0;overflow:auto;padding:20px 16px;color:#fff}
+  #home .wrap{max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+  #home h2{margin:0;text-align:center}
+  #home p{line-height:1.45;margin:0;color:#e6ebf0;text-align:center}
+  #plans{display:flex;flex-direction:column;gap:8px}
+  .plan{display:flex;align-items:center;gap:10px;background:#fff;color:#1d2733;border-radius:12px;padding:10px 10px 10px 14px;cursor:pointer}
+  .plan:active{background:#eef2f6}
+  .plan .ic{font-size:26px;line-height:1}
+  .plan .tx{flex:1;min-width:0}
+  .plan .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .plan .mt{font-size:13px;color:#5b6672;margin-top:2px}
+  .plan .del{background:#fdecec;color:#b3261e;width:44px;padding:0;font-size:18px;flex:none}
+  .noplan{background:rgba(255,255,255,.12);border-radius:12px;padding:18px;text-align:center;color:#e6ebf0}
+  .dlg button.danger{background:#b3261e;color:#fff}
+  footer{background:var(--panel);border-top:1px solid var(--line);padding:8px;padding-bottom:max(8px,env(safe-area-inset-bottom))}
+  #status{font-size:15px;color:#1d2733;min-height:22px;margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  #status b{color:var(--blue)}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#eef2f6;font-size:13px;color:#3b4652}
+  .pill.sel{background:#fff0e2;color:#a3520a}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .row input[type=text]{flex:1;min-width:120px;height:44px;border:1px solid var(--line);border-radius:10px;padding:0 12px;font-size:17px}
+  footer button{background:#eef2f6;color:#1d2733}
+  footer button.primary{background:var(--accent);color:#1b1b1b}
+  footer button.on{background:#1d2733;color:#fff}
+  .flash{animation:flash .6s ease}
+  @keyframes flash{0%{background:#c9f5d9}100%{background:var(--panel)}}
+  dialog{border:0;border-radius:14px;padding:0;max-width:min(560px,94vw);width:94vw;box-shadow:0 10px 40px rgba(0,0,0,.4)}
+  dialog::backdrop{background:rgba(0,0,0,.45)}
+  .dlg{padding:16px}
+  .dlg h3{margin:0 0 12px}
+  .dlg label{display:block;font-size:14px;color:#3b4652;margin:10px 0 4px}
+  .dlg select,.dlg input{width:100%;height:42px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font-size:16px;background:#fff}
+  .dlg .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;flex-wrap:wrap}
+  .dlg button{background:#eef2f6;color:#1d2733}
+  .dlg button.primary{background:var(--accent)}
+  .list{max-height:52vh;overflow:auto;border:1px solid var(--line);border-radius:8px}
+  .list .it{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);font-size:15px}
+  .list .it:last-child{border-bottom:0}
+  .list .it .t{flex:1}
+  .list .it s{color:#8a949e}
+  .list .it b{color:var(--blue)}
+  .list .it button{height:34px;padding:0 10px}
+  pre#log{background:#0f151b;color:#b8f5c8;font-size:12px;max-height:46vh;overflow:auto;padding:10px;border-radius:8px;white-space:pre-wrap;word-break:break-all;margin:0}
+  .hint{font-size:13px;color:#5b6672;line-height:1.4}
+  .sm{display:none}
+  #btLbl{max-width:150px;overflow:hidden;text-overflow:ellipsis}
+  @media (max-width:640px){
+    .lg,.zb{display:none}
+    .sm{display:inline}
+    header{flex-wrap:nowrap;gap:6px;padding:6px;overflow-x:auto}
+    header .grow{display:none}
+    button{height:40px;padding:0 10px;font-size:15px}
+    button.icon{width:40px}
+    #btnBT{flex:1;min-width:0;justify-content:center}
+    #btLbl{max-width:100%}
+    footer .row{flex-wrap:nowrap;gap:6px}
+    .row input[type=text]{min-width:0;height:40px;font-size:16px}
+    #btnAdd,#btnUndo{width:40px;padding:0;font-size:18px}
+    #status{font-size:14px;margin-bottom:6px}
+    #stage{margin:6px auto}
+    #home h2{font-size:22px}
+  }
+  .warn{background:#fff6e5;border:1px solid #ffd59a;color:#6b4100;border-radius:10px;padding:10px 12px;font-size:14px;line-height:1.4;margin-bottom:8px}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <button class="primary" id="btnHome" title="Mes plans"><span class="lg">⌂ Mes plans</span><span class="sm">⌂</span></button>
+    <input type="file" id="file" accept="application/pdf,.pdf" multiple hidden>
+    <div class="pager" id="pager" hidden>
+      <button class="icon" id="prev">‹</button><span id="pageLbl">1 / 1</span><button class="icon" id="next">›</button>
+    </div>
+    <button class="icon zb" id="zoomOut" title="Zoom -">−</button>
+    <button class="icon zb" id="zoomFit" title="Ajuster">⤢</button>
+    <button class="icon zb" id="zoomIn" title="Zoom +">+</button>
+    <div class="grow"></div>
+    <button id="btnBT" class="btstate"><span class="dot" id="btDot"></span><span id="btLbl">Télémètre</span></button>
+    <button id="btnList"><span class="lg">Relevés </span><span class="sm">≡ </span><span id="modCount">0</span></button>
+    <button id="btnExport" class="primary" disabled><span class="lg">Exporter le PDF</span><span class="sm">Exporter</span></button>
+    <button class="icon" id="btnSettings" title="Réglages">⚙</button>
+  </header>
+
+  <div id="viewer">
+    <div id="stage" hidden>
+      <canvas id="cv"></canvas>
+      <canvas id="ov"></canvas>
+    </div>
+    <div id="home"><div class="wrap">
+      <h2>Relevé de cotes au télémètre</h2>
+      <p>Ajoutez vos plans PDF, ouvrez-en un, connectez le télémètre, touchez une cote puis déclenchez la mesure.</p>
+      <button class="primary" id="btnAdd2">＋ Ajouter des plans PDF</button>
+      <div id="plans"></div>
+    </div></div>
+  </div>
+
+  <footer>
+    <div id="noBT" class="warn" hidden>Le Bluetooth n'est pas disponible dans ce navigateur. Sur iPad / iPhone, ouvrez cette page dans l'application gratuite <b>Bluefy – Web BLE Browser</b> (App Store). Sur Android ou PC : Chrome ou Edge.</div>
+    <div id="status"><span>Ouvrez un plan PDF pour commencer.</span></div>
+    <div class="row">
+      <button id="btnAdd" title="Ajouter une cote là où le plan n'a pas de texte">＋<span class="lg"> Cote libre</span></button>
+      <input type="text" id="manual" inputmode="decimal" placeholder="Mesure (m) ex. 3,452" autocomplete="off">
+      <button id="btnManual"><span class="lg">Appliquer</span><span class="sm">OK</span></button>
+      <button id="btnUndo" title="Annuler"><span class="lg">Annuler</span><span class="sm">↶</span></button>
+    </div>
+  </footer>
+</div>
+
+<dialog id="dlgList"><div class="dlg">
+  <h3>Cotes relevées</h3>
+  <div class="list" id="modList"></div>
+  <div class="actions"><button id="btnClearAll">Tout effacer</button><button class="primary" data-close>Fermer</button></div>
+</div></dialog>
+
+<dialog id="dlgSettings"><div class="dlg">
+  <h3>Réglages</h3>
+  <label>Unité d'écriture des cotes</label>
+  <select id="setUnit">
+    <option value="auto">Automatique (même format que la cote du plan)</option>
+    <option value="m2">Mètres, 2 décimales (3,45)</option>
+    <option value="m3">Mètres, 3 décimales (3,452)</option>
+    <option value="cm">Centimètres (345)</option>
+    <option value="mm">Millimètres (3452)</option>
+  </select>
+  <label>Unité envoyée par le télémètre</label>
+  <select id="setRecv">
+    <option value="auto">Automatique</option>
+    <option value="m">Mètres</option>
+    <option value="mm">Millimètres</option>
+  </select>
+  <label>Couleur des cotes relevées</label>
+  <select id="setColor">
+    <option value="#0a52cc">Bleu</option>
+    <option value="#d0021b">Rouge</option>
+    <option value="#1f9d55">Vert</option>
+    <option value="#000000">Noir</option>
+  </select>
+  <label>Taille du texte des cotes libres (pt)</label>
+  <input type="number" id="setSize" min="3" max="60" step="0.5">
+  <label>UUID de service Bluetooth supplémentaire (facultatif)</label>
+  <input type="text" id="setUUID" placeholder="ex. 0000ffe0-0000-1000-8000-00805f9b34fb">
+  <div class="actions">
+    <button id="btnLog">Journal Bluetooth</button>
+    <button class="primary" id="btnSaveSettings">Enregistrer</button>
+  </div>
+</div></dialog>
+
+<dialog id="dlgLog"><div class="dlg">
+  <h3>Journal Bluetooth</h3>
+  <pre id="log"></pre>
+  <p class="hint">Si le télémètre est connecté mais qu'aucune mesure n'arrive, copiez ce journal et transmettez-le pour adapter le décodage.</p>
+  <div class="actions"><button id="btnCopyLog">Copier</button><button class="primary" data-close>Fermer</button></div>
+</div></dialog>
+
+<dialog id="dlgExport"><div class="dlg">
+  <h3>PDF prêt</h3>
+  <p class="hint" id="expInfo"></p>
+  <div class="actions">
+    <button id="btnOpenPdf">Ouvrir</button>
+    <button id="btnDownload">Télécharger</button>
+    <button class="primary" id="btnShare">Partager / Enregistrer</button>
+  </div>
+</div></dialog>
+
+<dialog id="dlgConfirm"><div class="dlg">
+  <h3>Supprimer ce plan ?</h3>
+  <p class="hint" id="cfBody" style="font-size:15px"></p>
+  <div class="actions"><button data-close>Annuler</button><button class="danger" id="cfYes">Supprimer</button></div>
+</div></dialog>
+
+<dialog id="dlgMsg"><div class="dlg">
+  <h3 id="msgTitle"></h3>
+  <p class="hint" id="msgBody" style="font-size:15px"></p>
+  <div class="actions"><button class="primary" data-close>OK</button></div>
+</div></dialog>
+
+<script src="vendor/pdf.min.js"></script>
+<script src="vendor/pdf-lib.min.js"></script>
+<script>
+"use strict";
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
+
+/* ---------- état ---------- */
+const S = {
+  planId:null, bytes:null, name:'', doc:null, page:null, pageNum:1, numPages:0,
+  zoom:1, fit:1, vp:null, renderScale:1, renderTask:null,
+  cotes:{}, mods:[], undo:[], selected:null, pending:null, addMode:false,
+  settings:{unit:'auto', recv:'auto', color:'#0a52cc', size:10, uuid:''},
+};
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ov = $('ov'), stage = $('stage'), viewer = $('viewer');
+
+/* ---------- utilitaires ---------- */
+function msg(title, body){ $('msgTitle').textContent = title; $('msgBody').innerHTML = body; $('dlgMsg').showModal(); }
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('dialog').close());
+function fmtM(m){ return m.toFixed(3).replace('.', ',') + ' m'; }
+function setStatus(html, flash){ const s = $('status'); s.innerHTML = html; if(flash){ s.parentElement.classList.remove('flash'); void s.offsetWidth; s.parentElement.classList.add('flash'); } }
+function supDigits(s){ return String(s).replace(/\d/g, d => '⁰¹²³⁴⁵⁶⁷⁸⁹'[d]); }
+function hexToRgb(h){ const n = parseInt(h.slice(1),16); return [(n>>16&255)/255,(n>>8&255)/255,(n&255)/255]; }
+
+/* ---------- stockage local (IndexedDB) ---------- */
+const DB = {
+  open(){ return new Promise((res,rej)=>{ try{ const r = indexedDB.open('releve-telemetre',1); r.onupgradeneeded = ()=> r.result.createObjectStore('kv'); r.onsuccess = ()=> res(r.result); r.onerror = ()=> rej(r.error);}catch(e){rej(e);} }); },
+  async put(k,v){ try{ const db = await this.open(); await new Promise((res,rej)=>{ const t = db.transaction('kv','readwrite'); t.objectStore('kv').put(v,k); t.oncomplete=res; t.onerror=()=>rej(t.error); }); }catch(e){ console.warn(e); } },
+  async del(k){ try{ const db = await this.open(); await new Promise((res,rej)=>{ const t = db.transaction('kv','readwrite'); t.objectStore('kv').delete(k); t.oncomplete=res; t.onerror=()=>rej(t.error); }); }catch(e){ console.warn(e); } },
+  async get(k){ try{ const db = await this.open(); return await new Promise((res,rej)=>{ const t = db.transaction('kv','readonly'); const r = t.objectStore('kv').get(k); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }catch(e){ return undefined; } },
+};
+let saveTimer = null;
+function saveState(){
+  if(!S.planId) return;
+  const id = S.planId, mods = S.mods.slice();
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    await DB.put('mods:' + id, mods);
+    const list = await getPlans(); const pl = list.find(x => x.id === id);
+    if(pl){ pl.nMods = mods.length; pl.updated = Date.now(); await DB.put('plans', list); }
+  }, 300);
+}
+async function getPlans(){ return (await DB.get('plans')) || []; }
+function loadSettings(){ try{ const s = JSON.parse(localStorage.getItem('releve-settings')||'{}'); Object.assign(S.settings, s); }catch(e){} }
+function saveSettings(){ try{ localStorage.setItem('releve-settings', JSON.stringify(S.settings)); }catch(e){} }
+
+/* ---------- bibliothèque de plans ---------- */
+$('btnAdd2').onclick = () => $('file').click();
+$('btnHome').onclick = () => showHome();
+$('file').onchange = async e => {
+  const files = Array.from(e.target.files || []); e.target.value = '';
+  if(!files.length) return;
+  const list = await getPlans();
+  let last = null;
+  for(const f of files){
+    const bytes = new Uint8Array(await f.arrayBuffer());
+    const id = 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    await DB.put('pdf:' + id, bytes);
+    await DB.put('mods:' + id, []);
+    list.unshift({id, name:f.name, size:bytes.length, added:Date.now(), updated:Date.now(), nMods:0});
+    last = id;
+  }
+  await DB.put('plans', list);
+  if(files.length === 1) await openPlan(last); else renderPlans();
+};
+async function showHome(){
+  clearTimeout(saveTimer);
+  if(S.planId){ await DB.put('mods:' + S.planId, S.mods); const l = await getPlans(); const pl = l.find(x => x.id === S.planId); if(pl){ pl.nMods = S.mods.length; await DB.put('plans', l); } }
+  S.planId = null; S.page = null; S.selected = null; S.pending = null; setAddMode(false);
+  if(S.doc){ S.doc.destroy(); S.doc = null; }
+  stage.hidden = true; $('home').hidden = false; $('pager').hidden = true;
+  $('btnExport').disabled = true; $('modCount').textContent = '0';
+  setStatus('<span>Choisissez un plan ou ajoutez-en un.</span>');
+  renderPlans();
+}
+function fmtDate(t){ try{ return new Date(t).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric'}); }catch(e){ return ''; } }
+function fmtSize(n){ return n > 1048576 ? (n/1048576).toFixed(1).replace('.', ',') + ' Mo' : Math.max(1, Math.round(n/1024)) + ' Ko'; }
+async function renderPlans(){
+  const el = $('plans'); const list = await getPlans();
+  el.innerHTML = '';
+  if(!list.length){ el.innerHTML = '<div class="noplan">Aucun plan pour l\'instant. Touchez « ＋ Ajouter des plans PDF ».</div>'; return; }
+  for(const pl of list){
+    const d = document.createElement('div'); d.className = 'plan';
+    d.innerHTML = `<span class="ic">📄</span><div class="tx"><div class="nm"></div><div class="mt">${pl.nMods || 0} cote(s) relevée(s) · ${fmtDate(pl.updated || pl.added)}${pl.size ? ' · ' + fmtSize(pl.size) : ''}</div></div>`;
+    d.querySelector('.nm').textContent = pl.name;
+    const del = document.createElement('button'); del.className = 'del'; del.textContent = '🗑'; del.title = 'Supprimer';
+    del.onclick = ev => { ev.stopPropagation(); askDelete(pl); };
+    d.onclick = () => openPlan(pl.id);
+    d.append(del); el.append(d);
+  }
+}
+let toDelete = null;
+function askDelete(pl){
+  toDelete = pl;
+  $('cfBody').textContent = pl.nMods ? `« ${pl.name} » et ses ${pl.nMods} cote(s) relevée(s) seront supprimés de cet appareil.` : `« ${pl.name} » sera supprimé de cet appareil.`;
+  $('dlgConfirm').showModal();
+}
+$('cfYes').onclick = async () => {
+  $('dlgConfirm').close(); if(!toDelete) return;
+  const id = toDelete.id; toDelete = null;
+  await DB.del('pdf:' + id); await DB.del('mods:' + id);
+  await DB.put('plans', (await getPlans()).filter(x => x.id !== id));
+  renderPlans();
+};
+async function openPlan(id){
+  const list = await getPlans(); const pl = list.find(x => x.id === id);
+  const bytes = await DB.get('pdf:' + id);
+  if(!pl || !bytes){ msg('Plan introuvable', 'Ce plan n\'est plus enregistré sur cet appareil.'); renderPlans(); return; }
+  const mods = (await DB.get('mods:' + id)) || [];
+  S.planId = id;
+  await openPdf(bytes, pl.name, mods);
+}
+async function migrateOld(){
+  const p = await DB.get('pdf'); if(!p || !p.bytes) return;
+  const m = await DB.get('mods');
+  const id = 'p' + Date.now().toString(36);
+  await DB.put('pdf:' + id, p.bytes);
+  const mods = (m && m.name === p.name) ? (m.mods || []) : [];
+  await DB.put('mods:' + id, mods);
+  const list = await getPlans();
+  list.unshift({id, name:p.name, size:p.bytes.length, added:Date.now(), updated:Date.now(), nMods:mods.length});
+  await DB.put('plans', list);
+  await DB.del('pdf'); await DB.del('mods');
+}
+
+async function openPdf(bytes, name, mods){
+  try{
+    S.bytes = bytes; S.name = name; S.mods = mods || []; S.undo = []; S.cotes = {}; S.selected = null; S.pending = null;
+    if(S.doc) S.doc.destroy();
+    S.doc = await pdfjsLib.getDocument({data: bytes.slice(), standardFontDataUrl:'vendor/standard_fonts/'}).promise;
+    S.numPages = S.doc.numPages; S.pageNum = 1; S.zoom = 1;
+    $('home').hidden = true; stage.hidden = false;
+    $('pager').hidden = S.numPages < 2;
+    $('btnExport').disabled = false;
+    await showPage(1);
+    updateCount();
+  }catch(err){ console.error(err); S.planId = null; msg('Ouverture impossible', 'Le fichier n\'a pas pu être lu comme un PDF.<br>' + (err.message || err)); }
+}
+
+/* ---------- affichage ---------- */
+async function showPage(n){
+  S.pageNum = n; S.selected = null;
+  $('pageLbl').textContent = n + ' / ' + S.numPages;
+  S.page = await S.doc.getPage(n);
+  if(!S.cotes[n]) S.cotes[n] = await extractCotes(S.page, n);
+  const base = S.page.getViewport({scale:1});
+  S.fit = Math.max(0.05, (viewer.clientWidth - (viewer.clientWidth < 640 ? 12 : 24)) / base.width);
+  await render();
+  const nb = S.cotes[n].length;
+  setStatus(nb ? `<span>${nb} cote(s) détectée(s) sur la page. Touchez une cote, puis mesurez.</span>`
+               : `<span>Aucune cote lisible sur cette page (plan scanné ou texte vectorisé). Utilisez « ＋ Cote libre ».</span>`);
+}
+
+const MAXPX = 10e6;
+async function render(){
+  if(!S.page) return;
+  const dpr = window.devicePixelRatio || 1;
+  const disp = S.fit * S.zoom;
+  S.vp = S.page.getViewport({scale: disp});
+  let rs = disp * dpr;
+  const b = S.page.getViewport({scale:1});
+  const cap = Math.sqrt(MAXPX / (b.width * b.height));
+  rs = Math.min(rs, cap);
+  S.renderScale = rs;
+  const rvp = S.page.getViewport({scale: rs});
+  const W = Math.floor(rvp.width), H = Math.floor(rvp.height);
+  stage.style.width = S.vp.width + 'px'; stage.style.height = S.vp.height + 'px';
+  for(const c of [cv, ov]){ c.style.width = S.vp.width + 'px'; c.style.height = S.vp.height + 'px'; }
+  if(S.renderTask){ try{ S.renderTask.cancel(); }catch(e){} }
+  const tmp = document.createElement('canvas'); tmp.width = W; tmp.height = H;
+  const task = S.page.render({canvasContext: tmp.getContext('2d'), viewport: rvp, background:'#ffffff'});
+  S.renderTask = task;
+  try{ await task.promise; }catch(e){ if(e && e.name === 'RenderingCancelledException') return; throw e; }
+  cv.width = W; cv.height = H; cv.getContext('2d').drawImage(tmp, 0, 0);
+  ov.width = W; ov.height = H;
+  S.rvp = rvp;
+  drawOverlay();
+}
+
+/* repère local d'une cote : origine (ox,oy) en coordonnées PDF, axe u selon le texte, v vers le haut */
+function L(c, lu, lv){ const co = Math.cos(c.angle), si = Math.sin(c.angle); return [c.ox + lu*co - lv*si, c.oy + lu*si + lv*co]; }
+
+function modFor(coteId){ return S.mods.find(m => m.coteId === coteId); }
+
+function drawOverlay(){
+  const ctx = ov.getContext('2d');
+  ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,ov.width,ov.height);
+  const t = S.rvp.transform; ctx.setTransform(t[0],t[1],t[2],t[3],t[4],t[5]);
+  const cotes = S.cotes[S.pageNum] || [];
+  for(const c of cotes){
+    if(modFor(c.id)) continue;
+    const sel = S.selected && S.selected.id === c.id;
+    withLocal(ctx, c, () => {
+      ctx.fillStyle = sel ? 'rgba(255,138,31,.45)' : 'rgba(0,150,255,.13)';
+      ctx.fillRect(-0.1*c.h, -0.95*c.h, c.w + 0.2*c.h, 1.2*c.h);
+      if(sel){ ctx.lineWidth = Math.max(c.h*0.08, 1.5/S.renderScale); ctx.strokeStyle = '#ff6a00'; ctx.strokeRect(-0.1*c.h, -0.95*c.h, c.w + 0.2*c.h, 1.2*c.h); }
+    });
+  }
+  for(const m of S.mods){
+    if(m.page !== S.pageNum) continue;
+    const sel = S.selected && S.selected.id === m.coteId;
+    const g = modGeom(m, (s, size) => { ctx.font = `bold ${size}px Helvetica, Arial, sans-serif`; return ctx.measureText(s).width; });
+    withLocal(ctx, m, () => {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(g.rx, -1.0*m.h, g.rw, 1.25*m.h);
+      if(sel){ ctx.lineWidth = Math.max(m.h*0.08, 1.5/S.renderScale); ctx.strokeStyle = '#ff6a00'; ctx.strokeRect(g.rx, -1.0*m.h, g.rw, 1.25*m.h); }
+      ctx.fillStyle = S.settings.color; ctx.textBaseline = 'alphabetic';
+      ctx.font = `bold ${m.h}px Helvetica, Arial, sans-serif`;
+      ctx.fillText(g.main, g.tx, 0);
+      if(g.sup){ ctx.font = `bold ${m.h*0.62}px Helvetica, Arial, sans-serif`; ctx.fillText(g.sup, g.tx + g.mainW, -0.42*m.h); }
+    });
+  }
+  if(S.pending != null){ /* rien à dessiner : info dans la barre d'état */ }
+}
+/* dessin dans le repère du texte (y vers le bas pour que le texte soit droit) */
+function withLocal(ctx, c, fn){ ctx.save(); ctx.translate(c.ox, c.oy); ctx.rotate(c.angle); ctx.scale(1,-1); fn(); ctx.restore(); }
+
+/* géométrie commune aperçu / export */
+function modGeom(m, measure){
+  const main = m.sup ? m.text.split(/[.,]/)[0] : m.text;
+  const sup = m.sup ? (m.text.split(/[.,]/)[1] || '') : '';
+  const mainW = measure(main, m.h);
+  const supW = sup ? measure(sup, m.h*0.62) : 0;
+  const nw = mainW + supW;
+  const cx = m.w / 2;
+  const tx = m.free ? 0 : cx - nw/2;
+  const left = Math.min(tx, 0) - 0.15*m.h;
+  const right = Math.max(tx + nw, m.free ? nw : m.w) + 0.15*m.h;
+  return {main, sup, mainW, supW, tx, rx:left, rw:right-left};
+}
+
+/* ---------- détection des cotes dans le texte du PDF ---------- */
+const NUM_RE = /(\d{1,5}(?:[.,]\d{1,3})?)(\s?(?:mm|cm|m)(?![A-Za-zÀ-ÿ²³]))?/g;
+async function extractCotes(page, pn){
+  const tc = await page.getTextContent();
+  const toks = []; let id = 0;
+  for(const it of tc.items){
+    const s = it.str; if(!s || !/\d/.test(s)) continue;
+    const t = it.transform;
+    const h = Math.hypot(t[2], t[3]); if(h <= 0) continue;
+    const angle = Math.atan2(t[1], t[0]);
+    const W = it.width || (s.length * h * 0.55);
+    const len = s.length;
+    NUM_RE.lastIndex = 0; let mt;
+    while((mt = NUM_RE.exec(s))){
+      const before = mt.index > 0 ? s[mt.index-1] : '';
+      const after = s[mt.index + mt[0].length] || '';
+      if(/[A-Za-zÀ-ÿ°+\-\/=#]/.test(before)) continue;
+      if(/[A-Za-zÀ-ÿ°\/%]/.test(after)) continue;
+      if(/^\s?m[²2³3]/.test(s.slice(mt.index + mt[1].length))) continue;
+      if(/[.,]/.test(before) || /^[.,]\d/.test(s.slice(mt.index + mt[0].length))) continue;
+      const str = mt[1];
+      const val = parseFloat(str.replace(',', '.'));
+      if(!(val > 0)) continue;
+      const u0 = W * mt.index / len, uw = W * mt[0].length / len;
+      const co = Math.cos(angle), si = Math.sin(angle);
+      toks.push({
+        id: pn + ':' + (id++), page: pn, str, full: mt[0], suffix: mt[2] || '',
+        value: val, decimals: (str.split(/[.,]/)[1] || '').length, sep: (str.match(/[.,]/) || [','])[0],
+        ox: t[4] + u0*co, oy: t[5] + u0*si, angle, w: uw, h, sup:false,
+      });
+    }
+  }
+  /* cotes « à l'exposant » (2⁴⁰ = 2,40 m) : entier suivi d'un petit entier surélevé */
+  const used = new Set();
+  for(const a of toks){
+    if(a.decimals || a.suffix || used.has(a.id) || a.str.length > 2) continue;
+    let best = null;
+    for(const b of toks){
+      if(b === a || b.decimals || b.suffix || used.has(b.id) || b.str.length > 3) continue;
+      if(b.h > a.h * 0.88 || b.h < a.h * 0.3) continue;
+      if(Math.abs(b.angle - a.angle) > 0.06) continue;
+      const dx = b.ox - a.ox, dy = b.oy - a.oy, co = Math.cos(a.angle), si = Math.sin(a.angle);
+      const lu = dx*co + dy*si, lv = -dx*si + dy*co;
+      if(lu < a.w - 0.35*a.h || lu > a.w + 0.6*a.h) continue;
+      if(lv < 0.15*a.h || lv > 0.95*a.h) continue;
+      best = {b, lu}; break;
+    }
+    if(best){
+      used.add(best.b.id);
+      a.sup = true; a.supStr = best.b.str;
+      a.value = parseFloat(a.str + '.' + best.b.str); a.decimals = best.b.str.length; a.sep = '.';
+      a.w = best.lu + best.b.w;
+    }
+  }
+  return toks.filter(t => !used.has(t.id) && (t.sup || t.str.length >= 2 || t.decimals || t.suffix));
+}
+
+/* ---------- interactions sur le plan ---------- */
+ov.addEventListener('click', e => {
+  if(pinch.moved){ pinch.moved = false; return; }
+  const r = ov.getBoundingClientRect();
+  const x = e.clientX - r.left, y = e.clientY - r.top;
+  const [px, py] = S.vp.convertToPdfPoint(x, y);
+  if(S.addMode){ addFreeCote(px, py); return; }
+  const tol = 14 / (S.fit * S.zoom);
+  let best = null, bd = Infinity;
+  for(const c of (S.cotes[S.pageNum] || [])){
+    const d = distToBox(c, px, py); if(d < bd){ bd = d; best = c; }
+  }
+  for(const m of S.mods){
+    if(m.page !== S.pageNum || !m.free) continue;
+    const d = distToBox(m, px, py); if(d < bd){ bd = d; best = {id:m.coteId, free:true, ref:m}; }
+  }
+  if(best && bd <= tol){ selectCote(best); }
+  else { S.selected = null; drawOverlay(); setStatus('<span>Touchez une cote du plan.</span>'); }
+});
+function distToBox(c, px, py){
+  const dx = px - c.ox, dy = py - c.oy, co = Math.cos(c.angle), si = Math.sin(c.angle);
+  const lu = dx*co + dy*si, lv = -dx*si + dy*co;
+  const w = c.w || c.h * 2;
+  const du = lu < 0 ? -lu : (lu > w ? lu - w : 0);
+  const dv = lv < -0.25*c.h ? -0.25*c.h - lv : (lv > c.h ? lv - c.h : 0);
+  return Math.hypot(du, dv);
+}
+function selectCote(c){
+  S.selected = c;
+  drawOverlay();
+  if(S.pending != null){ const m = S.pending; S.pending = null; applyTo(c, m); return; }
+  const m = modFor(c.id);
+  const label = c.free ? 'cote libre' : `cote <span class="pill sel">${c.sup ? c.str + '<sup>' + c.supStr + '</sup>' : c.full}</span>`;
+  setStatus(`<span>${label} ${m ? '(relevée : <b>' + m.text + '</b>)' : ''} — visez et déclenchez la mesure.</span>`);
+}
+function addFreeCote(px, py){
+  const h = Number(S.settings.size) || 10;
+  const id = 'free:' + Date.now();
+  const c = {id, page:S.pageNum, ox:px, oy:py - 0.35*h, angle:0, w:h*2, h, free:true, value:0, decimals:2, sep:',', sup:false};
+  setAddMode(false);
+  S.selected = c;
+  if(S.pending != null){ const m = S.pending; S.pending = null; applyTo(c, m); return; }
+  drawOverlay();
+  setStatus('<span>Cote libre placée — déclenchez la mesure (ou saisissez-la).</span>');
+}
+function setAddMode(on){ S.addMode = on; $('btnAdd').classList.toggle('on', on); if(on) setStatus('<span>Touchez l\'endroit du plan où écrire la nouvelle cote.</span>'); }
+$('btnAdd').onclick = () => { if(!S.doc) return; setAddMode(!S.addMode); };
+
+/* ---------- application d'une mesure ---------- */
+function onMeasure(m){
+  if(!(m > 0)) return;
+  if(S.selected){ applyTo(S.selected, m); }
+  else if(S.doc){ S.pending = m; setStatus(`<span>Mesure reçue : <b>${fmtM(m)}</b> — touchez la cote à remplacer.</span>`, true); }
+  else { setStatus(`<span>Mesure reçue : <b>${fmtM(m)}</b> (aucun plan ouvert).</span>`, true); }
+}
+function formatFor(c, m){
+  const u = S.settings.unit;
+  let f = 1, dec = 2, sep = c.sep || ',';
+  if(u === 'auto' && c.value > 0 && !c.free){
+    let bd = Infinity;
+    for(const k of [1, 100, 1000]){ const d = Math.abs(Math.log(m * k / c.value)); if(d < bd){ bd = d; f = k; } }
+    dec = c.decimals;
+  } else if(u === 'm3'){ dec = 3; }
+  else if(u === 'cm'){ f = 100; dec = 0; }
+  else if(u === 'mm'){ f = 1000; dec = 0; }
+  if(c.sup && dec === 0) dec = 2;
+  const p10 = Math.pow(10, dec);
+  let s = (Math.round(m * f * p10 + 1e-7) / p10).toFixed(dec);
+  if(c.sup) s = s.replace('.', '.'); else s = s.replace('.', sep);
+  return s + (c.suffix || '');
+}
+function applyTo(c, m){
+  const ref = c.free && c.ref ? c.ref : null;
+  const text = formatFor(ref || c, m);
+  const prev = S.mods.findIndex(x => x.coteId === c.id);
+  S.undo.push(JSON.stringify(S.mods));
+  const mod = ref ? Object.assign({}, ref, {text, measured:m}) : {
+    coteId:c.id, page:c.page, ox:c.ox, oy:c.oy, angle:c.angle, w:c.w, h:c.h, sup:!!c.sup, free:!!c.free,
+    orig: c.free ? '' : (c.sup ? c.str + supDigits(c.supStr) : c.full), text, measured:m,
+  };
+  if(prev >= 0) S.mods[prev] = mod; else S.mods.push(mod);
+  S.selected = null;
+  drawOverlay(); updateCount(); saveState();
+  setStatus(`<span>${mod.orig ? '<s>' + mod.orig + '</s> → ' : ''}<b>${text}</b> (mesure ${fmtM(m)}). Touchez la cote suivante.</span>`, true);
+}
+$('btnManual').onclick = () => { const v = parseMeasureText($('manual').value, true); if(v){ onMeasure(v); $('manual').value = ''; } else if($('manual').value) msg('Valeur non reconnue', 'Saisissez une longueur en mètres, par exemple 3,452'); };
+$('manual').addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); $('btnManual').click(); } });
+$('btnUndo').onclick = () => { if(!S.undo.length) return; S.mods = JSON.parse(S.undo.pop()); drawOverlay(); updateCount(); saveState(); setStatus('<span>Dernière modification annulée.</span>'); };
+function updateCount(){ $('modCount').textContent = S.mods.length; }
+
+/* ---------- liste des relevés ---------- */
+$('btnList').onclick = () => { buildList(); $('dlgList').showModal(); };
+function buildList(){
+  const el = $('modList'); el.innerHTML = '';
+  if(!S.mods.length){ el.innerHTML = '<div class="it"><span class="t">Aucune cote relevée.</span></div>'; return; }
+  S.mods.forEach((m, i) => {
+    const d = document.createElement('div'); d.className = 'it';
+    d.innerHTML = `<span class="t">p.${m.page} — ${m.orig ? '<s>' + m.orig + '</s> → ' : 'libre : '}<b>${m.text}</b></span>`;
+    const go = document.createElement('button'); go.textContent = 'Voir';
+    go.onclick = async () => { $('dlgList').close(); if(m.page !== S.pageNum) await showPage(m.page); centerOn(m); };
+    const del = document.createElement('button'); del.textContent = '✕';
+    del.onclick = () => { S.undo.push(JSON.stringify(S.mods)); S.mods.splice(i, 1); drawOverlay(); updateCount(); saveState(); buildList(); };
+    d.append(go, del); el.append(d);
+  });
+}
+$('btnClearAll').onclick = () => { if(!S.mods.length) return; S.undo.push(JSON.stringify(S.mods)); S.mods = []; drawOverlay(); updateCount(); saveState(); buildList(); };
+function centerOn(m){
+  const [x, y] = S.vp.convertToViewportPoint(m.ox, m.oy);
+  viewer.scrollLeft = x + stage.offsetLeft - viewer.clientWidth/2;
+  viewer.scrollTop = y + stage.offsetTop - viewer.clientHeight/2;
+}
+
+/* ---------- zoom (boutons + pincement) ---------- */
+async function setZoom(z, ax, ay){
+  z = Math.max(0.5, Math.min(12, z));
+  ax = ax ?? viewer.clientWidth/2; ay = ay ?? viewer.clientHeight/2;
+  const sx = (viewer.scrollLeft + ax - stage.offsetLeft) / (S.fit * S.zoom);
+  const sy = (viewer.scrollTop + ay - stage.offsetTop) / (S.fit * S.zoom);
+  S.zoom = z;
+  await render();
+  viewer.scrollLeft = sx * S.fit * z + stage.offsetLeft - ax;
+  viewer.scrollTop = sy * S.fit * z + stage.offsetTop - ay;
+}
+$('zoomIn').onclick = () => S.page && setZoom(S.zoom * 1.5);
+$('zoomOut').onclick = () => S.page && setZoom(S.zoom / 1.5);
+$('zoomFit').onclick = () => S.page && setZoom(1);
+const pinch = {on:false, moved:false};
+viewer.addEventListener('touchstart', e => {
+  if(e.touches.length === 2 && S.page){
+    const [a, b] = e.touches; const r = viewer.getBoundingClientRect();
+    pinch.on = true; pinch.moved = true;
+    pinch.d0 = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    pinch.ax = (a.clientX + b.clientX)/2 - r.left; pinch.ay = (a.clientY + b.clientY)/2 - r.top;
+    pinch.ox = viewer.scrollLeft + pinch.ax - stage.offsetLeft; pinch.oy = viewer.scrollTop + pinch.ay - stage.offsetTop;
+    pinch.k = 1; stage.style.transformOrigin = pinch.ox + 'px ' + pinch.oy + 'px';
+    e.preventDefault();
+  }
+}, {passive:false});
+viewer.addEventListener('touchmove', e => {
+  if(pinch.on && e.touches.length === 2){
+    const [a, b] = e.touches;
+    pinch.k = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) / pinch.d0;
+    stage.style.transform = `scale(${pinch.k})`;
+    e.preventDefault();
+  }
+}, {passive:false});
+viewer.addEventListener('touchend', e => {
+  if(pinch.on && e.touches.length < 2){
+    pinch.on = false; stage.style.transform = '';
+    setZoom(S.zoom * pinch.k, pinch.ax, pinch.ay);
+    setTimeout(() => pinch.moved = false, 400);
+  }
+});
+viewer.addEventListener('wheel', e => { if(e.ctrlKey && S.page){ e.preventDefault(); const r = viewer.getBoundingClientRect(); setZoom(S.zoom * (e.deltaY < 0 ? 1.15 : 1/1.15), e.clientX - r.left, e.clientY - r.top); } }, {passive:false});
+$('prev').onclick = () => S.pageNum > 1 && showPage(S.pageNum - 1);
+$('next').onclick = () => S.pageNum < S.numPages && showPage(S.pageNum + 1);
+let rzT; window.addEventListener('resize', () => { clearTimeout(rzT); rzT = setTimeout(() => { if(S.page){ const b = S.page.getViewport({scale:1}); S.fit = Math.max(0.05, (viewer.clientWidth - (viewer.clientWidth < 640 ? 12 : 24)) / b.width); render(); } }, 250); });
+
+/* ---------- export PDF ---------- */
+let exported = null;
+$('btnExport').onclick = async () => {
+  if(!S.bytes) return;
+  $('btnExport').disabled = true; $('btnExport').dataset.h = $('btnExport').innerHTML; $('btnExport').textContent = 'Création…';
+  try{
+    const {PDFDocument, StandardFonts, rgb, degrees} = PDFLib;
+    const doc = await PDFDocument.load(S.bytes.slice(), {ignoreEncryption:true});
+    const font = await doc.embedFont(StandardFonts.HelveticaBold);
+    const col = rgb(...hexToRgb(S.settings.color));
+    const pages = doc.getPages();
+    for(const m of S.mods){
+      const p = pages[m.page - 1]; if(!p) continue;
+      const g = modGeom(m, (s, size) => font.widthOfTextAtSize(s, size));
+      const deg = m.angle * 180 / Math.PI;
+      const [rx, ry] = L(m, g.rx, -0.25*m.h);
+      p.drawRectangle({x:rx, y:ry, width:g.rw, height:1.25*m.h, color:rgb(1,1,1), rotate:degrees(deg), borderWidth:0});
+      const [tx, ty] = L(m, g.tx, 0);
+      p.drawText(g.main, {x:tx, y:ty, size:m.h, font, color:col, rotate:degrees(deg)});
+      if(g.sup){ const [sx, sy] = L(m, g.tx + g.mainW, 0.42*m.h); p.drawText(g.sup, {x:sx, y:sy, size:m.h*0.62, font, color:col, rotate:degrees(deg)}); }
+    }
+    const out = await doc.save();
+    const fname = S.name.replace(/\.pdf$/i, '') + '_releve.pdf';
+    exported = {bytes: out, name: fname};
+    $('expInfo').textContent = `${fname} — ${S.mods.length} cote(s) mise(s) à jour.`;
+    $('dlgExport').showModal();
+  }catch(err){ console.error(err); msg('Export impossible', err.message); }
+  finally{ $('btnExport').disabled = false; $('btnExport').innerHTML = $('btnExport').dataset.h; }
+};
+function exportBlob(){ return new Blob([exported.bytes], {type:'application/pdf'}); }
+$('btnShare').onclick = async () => {
+  const file = new File([exported.bytes], exported.name, {type:'application/pdf'});
+  if(navigator.canShare && navigator.canShare({files:[file]})){
+    try{ await navigator.share({files:[file], title: exported.name}); $('dlgExport').close(); }
+    catch(e){ if(e.name !== 'AbortError') msg('Partage impossible', e.message + '<br>Essayez « Télécharger » ou « Ouvrir ».'); }
+  } else { msg('Partage indisponible', 'Ce navigateur ne permet pas le partage de fichiers. Utilisez « Télécharger » ou « Ouvrir ».'); }
+};
+$('btnDownload').onclick = () => {
+  const url = URL.createObjectURL(exportBlob());
+  const a = document.createElement('a'); a.href = url; a.download = exported.name; document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+};
+$('btnOpenPdf').onclick = () => { const url = URL.createObjectURL(exportBlob()); window.open(url, '_blank') || (location.href = url); };
+
+/* ---------- réglages ---------- */
+$('btnSettings').onclick = () => {
+  $('setUnit').value = S.settings.unit; $('setRecv').value = S.settings.recv; $('setColor').value = S.settings.color;
+  $('setSize').value = S.settings.size; $('setUUID').value = S.settings.uuid;
+  $('dlgSettings').showModal();
+};
+$('btnSaveSettings').onclick = () => {
+  S.settings.unit = $('setUnit').value; S.settings.recv = $('setRecv').value; S.settings.color = $('setColor').value;
+  S.settings.size = parseFloat($('setSize').value) || 10; S.settings.uuid = $('setUUID').value.trim();
+  saveSettings(); $('dlgSettings').close(); if(S.page) drawOverlay();
+};
+$('btnLog').onclick = () => { $('log').textContent = BT.log.join('\n') || '(vide)'; $('dlgLog').showModal(); };
+$('btnCopyLog').onclick = async () => { try{ await navigator.clipboard.writeText(BT.log.join('\n')); $('btnCopyLog').textContent = 'Copié ✓'; setTimeout(()=>$('btnCopyLog').textContent='Copier', 1500); }catch(e){ const r = document.createRange(); r.selectNodeContents($('log')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); } };
+
+/* ---------- Bluetooth ---------- */
+const BT = {device:null, log:[], bufs:{}, timers:{}, last:{v:null, t:0}};
+function blog(s){ const t = new Date().toLocaleTimeString('fr-FR'); BT.log.push(t + '  ' + s); if(BT.log.length > 600) BT.log.shift(); }
+const full = n => typeof n === 'number' ? '0000' + n.toString(16).padStart(4, '0') + '-0000-1000-8000-00805f9b34fb' : n;
+const SVC_SHORT = [0xffe0, 0xfff0, 0xffb0, 0xffc0, 0xffd0, 0xff00, 0xff10, 0xff12, 0xffa0, 0xfee7, 0xae00, 0xae30, 0x18f0, 0x180a, 0x180f,
+  '6e400001-b5a3-f393-e0a9-e50e24dcca9e', '49535343-fe7d-4ae5-8fa9-9fafd205e455', '3ab10100-f831-4395-b29d-570977d5bf94',
+  '02a6c0d0-0451-4000-b000-fb3210111989', '0783b03e-8535-b5a0-7140-a304d2495cb7', 'e7810a71-73ae-499d-8c15-faa9aef0c3f2'];
+function customSvc(){
+  const u = (S.settings.uuid || '').trim().toLowerCase();
+  if(!u) return [];
+  if(/^(0x)?[0-9a-f]{4}$/.test(u)) return [full(parseInt(u.replace('0x', ''), 16))];
+  return [u];
+}
+function svcList(){
+  const l = [];
+  for(let i = 0xff00; i <= 0xfffc; i++) l.push(i);
+  for(let i = 0xfe00; i <= 0xfe3f; i++) l.push(i);
+  for(let i = 0xae00; i <= 0xae3f; i++) l.push(i);
+  for(let i = 0x18f0; i <= 0x18ff; i++) l.push(i);
+  l.push(0x180a, 0x180f);
+  return [...new Set([...SVC_SHORT, ...l].map(full).concat(customSvc()))];
+}
+function errText(e){
+  if(!e) return 'erreur inconnue';
+  if(typeof e === 'string') return e;
+  const t = [e.name, e.message].filter(Boolean).join(' : ');
+  if(t) return t;
+  try{ return JSON.stringify(e) || String(e); }catch(x){ return String(e); }
+}
+async function pickDevice(){
+  const tries = [
+    ['liste complète', () => ({acceptAllDevices:true, optionalServices: svcList()})],
+    ['liste courte', () => ({acceptAllDevices:true, optionalServices: [...new Set(SVC_SHORT.map(full).concat(customSvc()))]})],
+    ['sans liste', () => ({acceptAllDevices:true})],
+  ];
+  let lastErr = null;
+  for(const [label, opts] of tries){
+    try{ blog('Recherche (' + label + ')…'); return await navigator.bluetooth.requestDevice(opts()); }
+    catch(e){
+      lastErr = e; blog('  refus : ' + errText(e));
+      if(e && (e.name === 'NotFoundError' || /cancel|annul/i.test(errText(e)))) throw e;
+    }
+  }
+  throw lastErr;
+}
+function setBT(state, label){ $('btDot').className = 'dot' + (state === 'on' ? ' on' : state === 'busy' ? ' busy' : ''); $('btLbl').textContent = label; }
+$('btnBT').onclick = async () => {
+  if(!navigator.bluetooth){ $('noBT').hidden = false; msg('Bluetooth indisponible', 'Ce navigateur ne gère pas le Bluetooth web.<br><br><b>iPad / iPhone :</b> installez l\'application gratuite « Bluefy – Web BLE Browser » sur l\'App Store, puis ouvrez cette même adresse dans Bluefy.<br><b>Android / PC :</b> utilisez Chrome ou Edge.<br><br>En attendant, vous pouvez saisir les mesures dans le champ « Mesure manuelle ».'); return; }
+  if(BT.device && BT.device.gatt.connected){ BT.device.gatt.disconnect(); return; }
+  try{
+    setBT('busy', 'Recherche…');
+    let device = BT.device;
+    if(!device){
+      device = await pickDevice();
+      device.addEventListener('gattserverdisconnected', () => { setBT('off', 'Déconnecté'); blog('Déconnecté'); });
+      BT.device = device;
+    }
+    blog('Appareil : ' + (device.name || '(sans nom)') + '  id=' + device.id);
+    setBT('busy', 'Connexion…');
+    const server = await device.gatt.connect();
+    const services = await server.getPrimaryServices();
+    let nNotify = 0;
+    for(const s of services){
+      blog('Service ' + s.uuid);
+      let chars = [];
+      try{ chars = await s.getCharacteristics(); }catch(e){ blog('  (caractéristiques illisibles : ' + e.message + ')'); }
+      for(const c of chars){
+        const p = c.properties;
+        const props = ['read','write','writeWithoutResponse','notify','indicate'].filter(k => p[k]).join(',');
+        blog('  Car. ' + c.uuid + ' [' + props + ']');
+        if(p.notify || p.indicate){
+          try{ await c.startNotifications(); c.addEventListener('characteristicvaluechanged', ev => onBTData(c, ev.target.value)); nNotify++; }
+          catch(e){ blog('    notifications refusées : ' + e.message); }
+        }
+      }
+    }
+    blog(nNotify + ' canal(aux) à l\'écoute.');
+    if(!nNotify){ setBT('busy', 'Connecté (aucun canal)'); msg('Connecté, mais aucun canal de mesure', 'Le télémètre est connecté mais n\'expose aucun canal de notification reconnu. Ouvrez Réglages › Journal Bluetooth et transmettez son contenu.'); }
+    else setBT('on', device.name || 'Connecté');
+  }catch(err){
+    const et = errText(err);
+    blog('Erreur : ' + et);
+    setBT('off', 'Télémètre');
+    if(err && err.name === 'NotFoundError') return;
+    BT.device = null;
+    msg('Connexion impossible', et + '<br><br>Vérifiez :<br>• que le Bluetooth de l\'iPhone est activé et autorisé pour Bluefy (Réglages iOS › Bluefy › Bluetooth) ;<br>• que le Bluetooth du télémètre est activé ;<br>• qu\'il n\'est pas connecté à l\'app Mileseey ou à un autre appareil.<br><br>Si le problème continue : ⚙ › Journal Bluetooth › Copier, puis envoyez-moi le journal.');
+  }
+};
+
+function onBTData(c, dv){
+  const bytes = new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength);
+  const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join(' ');
+  const ascii = Array.from(bytes, b => (b >= 32 && b < 127) ? String.fromCharCode(b) : (b === 13 ? '\\r' : b === 10 ? '\\n' : '·')).join('');
+  blog('← ' + c.uuid.slice(4, 8) + '  ' + hex + '   "' + ascii + '"');
+  /* Leica DISTO : distance en float32 (m) */
+  if(c.uuid.startsWith('3ab10101') && bytes.length >= 4){ deliver(dv.getFloat32(0, true), 'leica'); return; }
+  const k = c.uuid;
+  let txt = '';
+  for(const b of bytes){ if(b >= 32 && b < 127) txt += String.fromCharCode(b); else if(b === 10 || b === 13) txt += '\n'; }
+  if(!/[0-9]/.test(txt) && !/\n/.test(txt) && !(BT.bufs[k] || '').length){ return; }
+  BT.bufs[k] = ((BT.bufs[k] || '') + txt).slice(-80);
+  clearTimeout(BT.timers[k]);
+  const buf = BT.bufs[k];
+  const lineEnd = buf.lastIndexOf('\n');
+  if(lineEnd >= 0){
+    const lines = buf.slice(0, lineEnd).split('\n').filter(x => /\d/.test(x));
+    BT.bufs[k] = buf.slice(lineEnd + 1);
+    if(lines.length){ const v = parseMeasureText(lines[lines.length - 1]); if(v) deliver(v, 'ascii'); }
+    return;
+  }
+  BT.timers[k] = setTimeout(() => { const v = parseMeasureText(BT.bufs[k]); BT.bufs[k] = ''; if(v) deliver(v, 'ascii'); }, 180);
+}
+function parseMeasureText(s, manual){
+  if(!s) return null;
+  s = String(s).replace(/\s+/g, ' ');
+  const re = /(-?\d+(?:[.,]\d+)?)\s*(mm|cm|m|ft|in|'|")?/g; let mt, last = null;
+  while((mt = re.exec(s))){ last = mt; }
+  if(!last) return null;
+  const v = parseFloat(last[1].replace(',', '.')); if(!isFinite(v)) return null;
+  const u = last[2];
+  let m;
+  if(u === 'mm') m = v/1000; else if(u === 'cm') m = v/100; else if(u === 'm') m = v;
+  else if(u === 'ft' || u === "'") m = v*0.3048; else if(u === 'in' || u === '"') m = v*0.0254;
+  else if(manual) m = v;
+  else if(S.settings.recv === 'm') m = v; else if(S.settings.recv === 'mm') m = v/1000;
+  else m = (/[.,]/.test(last[1]) || v < 300) ? v : v/1000;
+  return (m > 0.01 && m < 400) ? m : null;
+}
+function deliver(m, src){
+  if(!(m > 0.01 && m < 400)) return;
+  const now = Date.now();
+  if(BT.last.v === m && now - BT.last.t < 600) return;
+  BT.last = {v:m, t:now};
+  blog('Mesure : ' + fmtM(m) + ' (' + src + ')');
+  onMeasure(m);
+}
+
+/* ---------- démarrage ---------- */
+(async function init(){
+  loadSettings();
+  if(!navigator.bluetooth) $('noBT').hidden = false;
+  await migrateOld();
+  await renderPlans();
+  if('serviceWorker' in navigator){ try{ navigator.serviceWorker.register('sw.js'); }catch(e){} }
+})();
+</script>
+</body>
+</html>
